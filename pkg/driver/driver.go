@@ -27,6 +27,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
@@ -135,11 +137,23 @@ func (d *Driver) Run() error {
 		return fmt.Errorf("failed to create the OTLP exporter: %w", err)
 	}
 
-	// Create a trace provider with the exporter and a sampling strategy.
-	traceProvider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithSampler(trace.AlwaysSample()))
+	resources, err := resource.New(ctx,
+		resource.WithFromEnv(), // pull attributes from OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME environment variables
+		resource.WithProcess(),
+		resource.WithOS(),
+		resource.WithContainer(),
+		resource.WithHost(),
+	)
+	if err != nil {
+		klog.ErrorS(err, "Failed to create the OTLP resource, spans will lack some metadata")
+	}
 
-	// Register the trace provider as the global tracer provider.
+	// Create a trace provider with the exporter and a sampling strategy.
+	traceProvider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resources), trace.WithSampler(trace.AlwaysSample()))
+
+	// Register the trace provider and propagator as global.
 	otel.SetTracerProvider(traceProvider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	opts := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(logErr, otelgrpc.UnaryServerInterceptor()),
