@@ -62,6 +62,7 @@ func main() {
 		driver.WithAwsSdkDebugLog(options.ControllerOptions.AwsSdkDebugLog),
 		driver.WithWarnOnInvalidTag(options.ControllerOptions.WarnOnInvalidTag),
 		driver.WithUserAgentExtra(options.ControllerOptions.UserAgentExtra),
+		driver.WithOtelTracing(options.ServerOptions.EnableOtelTracing),
 	)
 	if err != nil {
 		klog.ErrorS(err, "failed to create driver")
