@@ -24,6 +24,10 @@ import (
 	"github.com/awslabs/volume-modifier-for-k8s/pkg/rpc"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-sigs/aws-ebs-csi-driver/pkg/util"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 )
@@ -123,8 +127,22 @@ func (d *Driver) Run() error {
 		}
 		return resp, err
 	}
+
+	// Setup OTLP exporter
+	ctx := context.Background()
+	exporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create the OTLP exporter: %w", err)
+	}
+
+	// Create a trace provider with the exporter and a sampling strategy.
+	traceProvider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithSampler(trace.AlwaysSample()))
+
+	// Register the trace provider as the global tracer provider.
+	otel.SetTracerProvider(traceProvider)
+
 	opts := []grpc.ServerOption{
-		grpc.UnaryInterceptor(logErr),
+		grpc.ChainUnaryInterceptor(logErr, otelgrpc.UnaryServerInterceptor()),
 	}
 	d.srv = grpc.NewServer(opts...)
 
