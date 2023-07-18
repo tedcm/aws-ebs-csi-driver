@@ -48,8 +48,8 @@ func initOtelTracing() error {
 		klog.ErrorS(err, "Failed to create the OTLP resource, spans will lack some metadata")
 	}
 
-	// Create a trace provider with the exporter and a sampling strategy.
-	traceProvider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resource), trace.WithSampler(trace.ParentBased(trace.AlwaysSample())))
+	// Create a trace provider with the exporter.
+	traceProvider := trace.NewTracerProvider(trace.WithBatcher(exporter), trace.WithResource(resource))
 
 	// Register the trace provider and propagator as global.
 	otel.SetTracerProvider(traceProvider)
